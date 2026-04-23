@@ -306,14 +306,20 @@ build_qpdf() {
     fi
   fi
 
-  export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-  if [ -d "$PREFIX/lib64/pkgconfig" ]; then
-    export PKG_CONFIG_PATH="$PREFIX/lib64/pkgconfig:$PKG_CONFIG_PATH"
-  fi
+  if [ "$TARGET_OS" = "windows" ]; then
+    # On Windows/MSVC, pkg-config commonly reports zlib as `-lz`, which CMake
+    # turns into `z.lib`. Force CMake to use the explicit library paths below.
+    extra_cmake_args+=("-DCMAKE_DISABLE_FIND_PACKAGE_PkgConfig=ON")
+  else
+    export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+    if [ -d "$PREFIX/lib64/pkgconfig" ]; then
+      export PKG_CONFIG_PATH="$PREFIX/lib64/pkgconfig:$PKG_CONFIG_PATH"
+    fi
 
-  pkg_config_exe="$(command -v pkg-config.exe 2>/dev/null || command -v pkg-config 2>/dev/null || true)"
-  if [ -n "$pkg_config_exe" ]; then
-    extra_cmake_args+=("-DPKG_CONFIG_EXECUTABLE=$pkg_config_exe")
+    pkg_config_exe="$(command -v pkg-config.exe 2>/dev/null || command -v pkg-config 2>/dev/null || true)"
+    if [ -n "$pkg_config_exe" ]; then
+      extra_cmake_args+=("-DPKG_CONFIG_EXECUTABLE=$pkg_config_exe")
+    fi
   fi
 
   for jpeg_library in \
@@ -327,6 +333,7 @@ build_qpdf() {
         "-DJPEG_INCLUDE_DIR=$PREFIX/include"
         "-DJPEG_LIBRARY=$jpeg_library"
         "-DJPEG_LIBRARY_RELEASE=$jpeg_library"
+        "-DJPEG_LIBRARIES=$jpeg_library"
       )
       break
     fi
@@ -341,6 +348,7 @@ build_qpdf() {
         "-DZLIB_INCLUDE_DIR=$PREFIX/include"
         "-DZLIB_LIBRARY=$zlib_library"
         "-DZLIB_LIBRARY_RELEASE=$zlib_library"
+        "-DZLIB_LIBRARIES=$zlib_library"
       )
       break
     fi
