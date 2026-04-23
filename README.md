@@ -44,8 +44,9 @@ automatically through a Dart native asset [build hook](hook/build.dart):
 | Android  | any   | System install required (mobile prebuilts planned)    |
 | iOS      | any   | System install required (mobile prebuilts planned)    |
 
-The prebuilt `libqpdf` has `zlib`, `libjpeg-turbo`, and `OpenSSL` statically
-linked — nothing else to install.
+The source-built prebuilts have `zlib`, `libjpeg-turbo`, and `OpenSSL`
+statically linked. The `windows-x64` prebuilt is repackaged from the matching
+upstream `qpdf` release.
 
 **Fallback.** If the prebuilt download fails (offline build, firewalled CI,
 unsupported platform), the hook falls back to a system-installed qpdf:
@@ -262,7 +263,8 @@ Copyright © 2005-2021 Jay Berkenbilt and © 2022-2026 Jay Berkenbilt and
 Manfred Holger, distributed under the Apache License 2.0. See
 <https://github.com/qpdf/qpdf> for the upstream source.
 
-The prebuilt `libqpdf` shared libraries distributed via this package's
+The source-built `libqpdf` shared libraries distributed via this package's
 GitHub Releases statically link [zlib](https://zlib.net/),
 [libjpeg-turbo](https://libjpeg-turbo.org/), and
-[OpenSSL](https://www.openssl.org/), each under its respective license.
+[OpenSSL](https://www.openssl.org/), each under its respective license. The
+`windows-x64` prebuilt is repackaged from the matching upstream qpdf release.

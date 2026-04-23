@@ -9,6 +9,7 @@
 #   OPENSSL_VERSION  — e.g. "3.3.2"
 #   TARGET_OS        — "linux" | "macos" | "windows"
 #   TARGET_ARCH      — "x64" | "arm64"
+#   QPDF_BUILD_STRATEGY — "source" | "upstream-release" (default: "source")
 #
 # -----------------------------------------------------------------------------
 # Artifact naming convention — KEEP IN SYNC WITH `hook/build.dart`
@@ -20,10 +21,13 @@
 # where <os> ∈ { linux, macos, windows }
 #       <arch> ∈ { x64, arm64 }
 #
-# The tarball contains exactly ONE file at the top level:
+# The tarball contains the primary library at the top level:
 #     Linux   → libqpdf.so
 #     macOS   → libqpdf.dylib
 #     Windows → qpdf29.dll
+#
+# The windows-x64 upstream-repackaged artifact may also contain additional
+# top-level DLLs required by the upstream qpdf distribution.
 #
 # The hook (`hook/build.dart`) constructs the same filename when downloading
 # from GitHub releases. If you change the name here, update the hook too.
@@ -36,6 +40,7 @@ set -euo pipefail
 : "${OPENSSL_VERSION:?OPENSSL_VERSION is required}"
 : "${TARGET_OS:?TARGET_OS is required}"
 : "${TARGET_ARCH:?TARGET_ARCH is required}"
+QPDF_BUILD_STRATEGY="${QPDF_BUILD_STRATEGY:-source}"
 
 BUILD_ROOT="$(pwd)/build"
 SRC_DIR="$BUILD_ROOT/src"
@@ -53,9 +58,107 @@ fetch() {
   curl -fsSL --retry 3 -o "$out" "$url"
 }
 
-# Shared C flags for static deps (PIC required so they can be linked into libqpdf.so)
-export CFLAGS="${CFLAGS:-} -fPIC -O2"
-export CXXFLAGS="${CXXFLAGS:-} -fPIC -O2"
+job_count() {
+  nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4
+}
+
+prepare_windows_toolchain() {
+  [ "$TARGET_OS" = "windows" ] || return 0
+
+  # Ensure MSVC tools win PATH resolution inside Git Bash so OpenSSL/nmake
+  # don't accidentally pick Git's `link` utility.
+  local cl_path=""
+  cl_path="$(command -v cl.exe 2>/dev/null || command -v cl 2>/dev/null || true)"
+  if [ -n "$cl_path" ]; then
+    export PATH="$(dirname "$cl_path"):$PATH"
+  fi
+
+  [ "$QPDF_BUILD_STRATEGY" = "source" ] || return 0
+
+  local link_path=""
+  local nmake_path=""
+  local rc_path=""
+
+  cl_path="$(command -v cl.exe 2>/dev/null || command -v cl 2>/dev/null || true)"
+  link_path="$(command -v link.exe 2>/dev/null || command -v link 2>/dev/null || true)"
+  nmake_path="$(command -v nmake.exe 2>/dev/null || command -v nmake 2>/dev/null || true)"
+  rc_path="$(command -v rc.exe 2>/dev/null || command -v rc 2>/dev/null || true)"
+
+  echo "==> Windows toolchain diagnostics"
+  echo "    cl:    ${cl_path:-<missing>}"
+  echo "    link:  ${link_path:-<missing>}"
+  echo "    nmake: ${nmake_path:-<missing>}"
+  echo "    rc:    ${rc_path:-<missing>}"
+  echo "    CFLAGS: ${CFLAGS:-<unset>}"
+  echo "    CXXFLAGS: ${CXXFLAGS:-<unset>}"
+
+  if [ -z "$cl_path" ] || [ -z "$link_path" ] || [ -z "$nmake_path" ] || [ -z "$rc_path" ]; then
+    echo "Missing required Windows build tools on PATH"
+    exit 1
+  fi
+
+  case "$cl_path" in
+    *Microsoft\ Visual\ Studio*|*MSVC*) ;;
+    *)
+      echo "Resolved cl is not from MSVC: $cl_path"
+      exit 1
+      ;;
+  esac
+
+  case "$link_path" in
+    *Microsoft\ Visual\ Studio*|*MSVC*) ;;
+    *)
+      echo "Resolved link is not from MSVC: $link_path"
+      exit 1
+      ;;
+  esac
+
+  case " ${CFLAGS:-} ${CXXFLAGS:-} " in
+    *" -fPIC "*)
+      echo "Unix flag -fPIC leaked into Windows build flags"
+      exit 1
+      ;;
+  esac
+}
+
+extract_zip() {
+  local archive="$1"
+  local dest="$2"
+
+  rm -rf "$dest"
+  mkdir -p "$dest"
+
+  if command -v unzip >/dev/null 2>&1; then
+    unzip -q "$archive" -d "$dest"
+  else
+    tar -xf "$archive" -C "$dest"
+  fi
+}
+
+package_staging_dir() {
+  local staging="$1"
+
+  case "$TARGET_OS" in
+    linux) ldd "$staging"/*.so || true ;;
+    macos) otool -L "$staging"/*.dylib || true ;;
+    windows) : ;;
+  esac
+
+  local tarball="$DIST_DIR/libqpdf-${TARGET_OS}-${TARGET_ARCH}.tar.gz"
+  tar -czf "$tarball" -C "$staging" .
+  echo "==> Wrote $tarball"
+  ls -lh "$tarball"
+}
+
+# Shared C flags for native builds. Windows/MSVC must not inherit Unix flags.
+if [ "$TARGET_OS" = "windows" ]; then
+  export CFLAGS="${CFLAGS:-} /O2"
+  export CXXFLAGS="${CXXFLAGS:-} /O2"
+else
+  # PIC is required so static deps can be linked into the shared libqpdf.
+  export CFLAGS="${CFLAGS:-} -fPIC -O2"
+  export CXXFLAGS="${CXXFLAGS:-} -fPIC -O2"
+fi
 
 # MacOS deployment target is already set in the workflow env
 if [ "$TARGET_OS" = "macos" ]; then
@@ -88,7 +191,7 @@ build_zlib() {
     fi
   else
     ./configure --prefix="$PREFIX" --static
-    make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)
+    make -j"$(job_count)"
     make install
   fi
 }
@@ -147,7 +250,7 @@ build_openssl() {
     nmake
     nmake install_sw
   else
-    make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)
+    make -j"$(job_count)"
     make install_sw
   fi
 }
@@ -189,9 +292,59 @@ build_qpdf() {
     cmake --build build --config Release -j
     cmake --install build --config Release
   else
-    cmake --build build -j
+    cmake --build build -j"$(job_count)"
     cmake --install build
   fi
+}
+
+reuse_upstream_release() {
+  echo "==> Repackaging upstream qpdf release artifact"
+  cd "$SRC_DIR"
+
+  local archive=""
+  local extracted="$BUILD_ROOT/upstream"
+  local staging="$BUILD_ROOT/staging"
+
+  case "${TARGET_OS}-${TARGET_ARCH}" in
+    windows-x64)
+      archive="qpdf-${QPDF_VERSION}-msvc64.zip"
+      ;;
+    *)
+      echo "Unsupported upstream-release target: ${TARGET_OS}-${TARGET_ARCH}"
+      exit 1
+      ;;
+  esac
+
+  fetch "https://github.com/qpdf/qpdf/releases/download/v${QPDF_VERSION}/${archive}" "$archive"
+  extract_zip "$archive" "$extracted"
+
+  rm -rf "$staging"
+  mkdir -p "$staging"
+
+  case "${TARGET_OS}-${TARGET_ARCH}" in
+    windows-x64)
+      mapfile -t dlls < <(find "$extracted" -iname "*.dll" | sort)
+      if [ "${#dlls[@]}" -eq 0 ]; then
+        echo "Could not find any DLLs in upstream archive"
+        exit 1
+      fi
+      local main_dll=""
+      main_dll="$(find "$extracted" -iname "qpdf*.dll" | head -1)"
+      if [ -z "$main_dll" ]; then
+        echo "Could not find qpdf DLL in upstream archive"
+        exit 1
+      fi
+      local dll
+      for dll in "${dlls[@]}"; do
+        cp "$dll" "$staging/$(basename "$dll")"
+      done
+      if [ "$(basename "$main_dll")" != "qpdf29.dll" ]; then
+        cp "$main_dll" "$staging/qpdf29.dll"
+      fi
+      ;;
+  esac
+
+  package_staging_dir "$staging"
 }
 
 # ---------- package ----------
@@ -237,25 +390,28 @@ package_artifact() {
       ;;
   esac
 
-  # Verify the library has no unexpected dynamic deps (best-effort)
-  case "$TARGET_OS" in
-    linux) ldd "$staging"/*.so || true ;;
-    macos) otool -L "$staging"/*.dylib || true ;;
-    windows) : ;;  # dumpbin not always available on bash
-  esac
-
-  local tarball="$DIST_DIR/libqpdf-${TARGET_OS}-${TARGET_ARCH}.tar.gz"
-  tar -czf "$tarball" -C "$staging" .
-  echo "==> Wrote $tarball"
-  ls -lh "$tarball"
+  package_staging_dir "$staging"
 }
 
 # ---------- main ----------
 
-build_zlib
-build_jpeg
-build_openssl
-build_qpdf
-package_artifact
+prepare_windows_toolchain
+
+case "$QPDF_BUILD_STRATEGY" in
+  upstream-release)
+    reuse_upstream_release
+    ;;
+  source)
+    build_zlib
+    build_jpeg
+    build_openssl
+    build_qpdf
+    package_artifact
+    ;;
+  *)
+    echo "Unknown QPDF_BUILD_STRATEGY: $QPDF_BUILD_STRATEGY"
+    exit 1
+    ;;
+esac
 
 echo "==> Done."

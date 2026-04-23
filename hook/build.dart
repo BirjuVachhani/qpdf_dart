@@ -42,14 +42,16 @@ const _assetId = 'package:qpdf/src/native/libqpdf';
 //     <os>    ∈ { "linux", "macos", "windows" }
 //     <arch>  ∈ { "x64", "arm64" }
 //
-// The tarball contains exactly ONE file at the top level:
+// The tarball contains the primary library at the top level:
 //
 //     Linux   → libqpdf.so       (shared object)
 //     macOS   → libqpdf.dylib    (shared library)
 //     Windows → qpdf29.dll       (dynamic link library)
 //
-// All native dependencies (zlib, libjpeg-turbo, OpenSSL) are statically
-// linked into that single library file.
+// Source-built prebuilts statically link native dependencies into a single
+// library file. The windows-x64 prebuilt is repackaged from the matching
+// upstream qpdf release for the same qpdf version and may include additional
+// top-level DLLs from that upstream bundle.
 //
 // Full download URL:
 //     https://github.com/<repo>/releases/download/<tag>/libqpdf-<os>-<arch>.tar.gz
@@ -100,8 +102,10 @@ Future<void> _buildHook(BuildInput input, BuildOutputBuilder output) async {
   final targetArch = input.config.code.targetArchitecture;
   final outDir = input.outputDirectoryShared;
 
-  _log('Resolving qpdf $_qpdfVersion for ${_osSuffix(targetOS)}-'
-      '${_archSuffix(targetArch)}');
+  _log(
+    'Resolving qpdf $_qpdfVersion for ${_osSuffix(targetOS)}-'
+    '${_archSuffix(targetArch)}',
+  );
 
   final libraryFile = await _resolveLibrary(
     os: targetOS,
@@ -111,12 +115,14 @@ Future<void> _buildHook(BuildInput input, BuildOutputBuilder output) async {
 
   _log('Using library: ${libraryFile.path}');
 
-  output.assets.code.add(CodeAsset(
-    package: _packageName,
-    name: _assetId,
-    linkMode: DynamicLoadingBundled(),
-    file: libraryFile.uri,
-  ));
+  output.assets.code.add(
+    CodeAsset(
+      package: _packageName,
+      name: _assetId,
+      linkMode: DynamicLoadingBundled(),
+      file: libraryFile.uri,
+    ),
+  );
   output.dependencies.add(libraryFile.uri);
 }
 
@@ -160,8 +166,10 @@ Future<File> _resolveLibrary({
       _log('Falling back to system-installed qpdf…');
     }
   } else {
-    _log('No prebuilt published for ${_osSuffix(os)}-${_archSuffix(arch)}; '
-        'checking system-installed qpdf…');
+    _log(
+      'No prebuilt published for ${_osSuffix(os)}-${_archSuffix(arch)}; '
+      'checking system-installed qpdf…',
+    );
   }
 
   // ---- Strategy 3: System install ---------------------------------------
@@ -187,8 +195,7 @@ Future<File> _downloadPrebuilt({
   _logDetail('url:   $url');
 
   final outDirPath = outDir.toFilePath();
-  final client = HttpClient()
-    ..connectionTimeout = const Duration(seconds: 15);
+  final client = HttpClient()..connectionTimeout = const Duration(seconds: 15);
 
   try {
     final response = await _getFollowingRedirects(client, url);
@@ -228,8 +235,9 @@ Future<HttpClientResponse> _getFollowingRedirects(
   for (var hops = 0; hops <= 5; hops++) {
     final request = await client.getUrl(currentUrl);
     request.followRedirects = false;
-    final response =
-        await request.close().timeout(const Duration(seconds: 120));
+    final response = await request.close().timeout(
+      const Duration(seconds: 120),
+    );
 
     if (response.isRedirect) {
       final location = response.headers.value(HttpHeaders.locationHeader);
@@ -259,10 +267,12 @@ Future<HttpClientResponse> _getFollowingRedirects(
 /// Extracts a .tar.gz archive into [dest]. Requires `tar` on PATH (available
 /// by default on macOS, Linux, and Windows 10+).
 Future<void> _extractTarGz(File archive, Directory dest) async {
-  final result = await Process.run(
-    'tar',
-    ['xzf', archive.path, '-C', dest.path],
-  );
+  final result = await Process.run('tar', [
+    'xzf',
+    archive.path,
+    '-C',
+    dest.path,
+  ]);
   if (result.exitCode != 0) {
     throw ProcessException(
       'tar',
@@ -304,25 +314,25 @@ File _findSystemLibrary(OS os) {
 
 List<String> _systemSearchPaths(OS os) => switch (os) {
   OS.macOS => const [
-      '/opt/homebrew/lib/libqpdf.dylib',
-      '/opt/homebrew/lib/libqpdf.30.dylib',
-      '/opt/homebrew/lib/libqpdf.29.dylib',
-      '/usr/local/lib/libqpdf.dylib',
-      '/usr/local/lib/libqpdf.30.dylib',
-      '/usr/local/lib/libqpdf.29.dylib',
-    ],
+    '/opt/homebrew/lib/libqpdf.dylib',
+    '/opt/homebrew/lib/libqpdf.30.dylib',
+    '/opt/homebrew/lib/libqpdf.29.dylib',
+    '/usr/local/lib/libqpdf.dylib',
+    '/usr/local/lib/libqpdf.30.dylib',
+    '/usr/local/lib/libqpdf.29.dylib',
+  ],
   OS.linux => const [
-      '/usr/lib/x86_64-linux-gnu/libqpdf.so',
-      '/usr/lib/x86_64-linux-gnu/libqpdf.so.29',
-      '/usr/lib/aarch64-linux-gnu/libqpdf.so',
-      '/usr/lib/aarch64-linux-gnu/libqpdf.so.29',
-      '/usr/lib/libqpdf.so',
-      '/usr/local/lib/libqpdf.so',
-    ],
+    '/usr/lib/x86_64-linux-gnu/libqpdf.so',
+    '/usr/lib/x86_64-linux-gnu/libqpdf.so.29',
+    '/usr/lib/aarch64-linux-gnu/libqpdf.so',
+    '/usr/lib/aarch64-linux-gnu/libqpdf.so.29',
+    '/usr/lib/libqpdf.so',
+    '/usr/local/lib/libqpdf.so',
+  ],
   OS.windows => const [
-      r'C:\Program Files\qpdf\bin\qpdf29.dll',
-      r'C:\Program Files\qpdf\bin\qpdf30.dll',
-    ],
+    r'C:\Program Files\qpdf\bin\qpdf29.dll',
+    r'C:\Program Files\qpdf\bin\qpdf30.dll',
+  ],
   _ => const <String>[],
 };
 

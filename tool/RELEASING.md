@@ -4,13 +4,19 @@ The Dart `qpdf` package downloads prebuilt qpdf shared libraries from this
 repository's GitHub Releases at build time. This document describes how to
 produce a new set of prebuilts — e.g., when updating to a new qpdf version.
 
+The release workflow is hybrid:
+
+- `windows-x64` is repackaged from the matching upstream `qpdf/qpdf` release.
+- The remaining desktop targets are built from the upstream qpdf source
+  release for that same version.
+
 ## Overview
 
 ```
-tool/build_qpdf.sh          # Cross-platform build script (runs in CI)
+tool/build_qpdf.sh          # Repackages upstream assets or builds from source
 .github/workflows/
-  build-prebuilts.yml       # GitHub Actions workflow that runs the build
-                            # on 6 platform matrices and uploads a release
+  build-prebuilts.yml       # GitHub Actions workflow that publishes 6
+                            # platform artifacts to a release
 hook/build.dart             # At install-time: downloads the prebuilt for
                             # the user's target platform
 ```
@@ -28,9 +34,9 @@ Six self-contained shared libraries, one per desktop platform:
 | Windows | x64    | `qpdf29.dll`          | `libqpdf-windows-x64.tar.gz`       |
 | Windows | arm64  | `qpdf29.dll`          | `libqpdf-windows-arm64.tar.gz`     |
 
-Each library has **all dependencies statically linked**: `zlib`,
-`libjpeg-turbo`, and `OpenSSL`. The resulting file has no external runtime
-dependencies beyond the OS C runtime.
+Each source-built library has **all dependencies statically linked**:
+`zlib`, `libjpeg-turbo`, and `OpenSSL`. The `windows-x64` artifact is
+repackaged from the official upstream qpdf release for the same qpdf version.
 
 ## Releasing a new prebuilt set
 
@@ -102,8 +108,8 @@ artifacts to that release.
 
 ---
 
-All three paths run the same six cross-compile jobs in parallel (~15–25 min),
-then upload six tarballs to the GitHub Release at that tag. `hook/build.dart`
+All three paths run the same six platform jobs in parallel (~15–25 min), then
+upload six tarballs to the GitHub Release at that tag. `hook/build.dart`
 will start downloading from that tag on the next
 `dart pub get` / `flutter pub get`.
 
