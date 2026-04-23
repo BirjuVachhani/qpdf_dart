@@ -1,0 +1,264 @@
+name: Build qpdf prebuilts
+
+# Cross-compiles qpdf into self-contained shared libraries for all supported
+# desktop platforms, packages them into tarballs, and uploads them as a
+# GitHub Release.
+#
+# The Dart `hook/build.dart` in this package downloads these artifacts at
+# build time.
+#
+# TRIGGERS
+# --------
+# This workflow runs on any of the following events:
+#
+#   1. push tag `prebuilts-v*`
+#        git tag prebuilts-v12.3.2-1 && git push --tags
+#
+#   2. release published (e.g., via GitHub UI "Create a new release")
+#        the release's tag name is used automatically
+#
+#   3. manual dispatch (Actions tab -> Run workflow)
+#        provide the `tag` input (e.g. "prebuilts-v12.3.2-1");
+#        the release is CREATED if it does not already exist
+#
+# RELEASING A NEW QPDF VERSION
+# ----------------------------
+#   1. Update QPDF_VERSION in the env block below
+#   2. Update _qpdfVersion in hook/build.dart to match
+#   3. Update qpdf headers in third_party/include/qpdf/ to that version
+#   4. Regenerate bindings: dart run ffigen --config ffigen.yaml
+#   5. Trigger via any of the three methods above
+
+on:
+  # Auto-trigger when a GitHub Release is published (e.g., via the UI).
+  release:
+    types: [published]
+  # Auto-trigger when a prebuilts-v* tag is pushed.
+  push:
+    tags:
+      - 'prebuilts-v*'
+  # Manual trigger from the Actions tab with an explicit tag name.
+  # If the release does not yet exist at that tag, it will be created.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: >-
+          Release tag to build for (e.g. prebuilts-v12.3.2-1).
+          The tag and release will be created if they do not exist,
+          pointing at the current HEAD of the workflow's branch.
+        required: true
+        type: string
+
+env:
+  QPDF_VERSION: '12.3.2'
+  ZLIB_VERSION: '1.3.1'
+  JPEG_VERSION: '3.0.4'
+  OPENSSL_VERSION: '3.3.2'
+
+jobs:
+  # ------------------------------------------------------------
+  # Linux x64 - Ubuntu with gcc
+  # ------------------------------------------------------------
+  linux-x64:
+    name: Linux x64
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake nasm pkg-config
+      - name: Build deps + qpdf
+        env:
+          TARGET_OS: linux
+          TARGET_ARCH: x64
+        run: bash tool/build_qpdf.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libqpdf-linux-x64
+          path: build/dist/libqpdf-linux-x64.tar.gz
+          retention-days: 7
+
+  # ------------------------------------------------------------
+  # Linux arm64 - native arm64 GitHub-hosted runner
+  # ------------------------------------------------------------
+  linux-arm64:
+    name: Linux arm64
+    runs-on: ubuntu-22.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake nasm pkg-config
+      - name: Build deps + qpdf
+        env:
+          TARGET_OS: linux
+          TARGET_ARCH: arm64
+        run: bash tool/build_qpdf.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libqpdf-linux-arm64
+          path: build/dist/libqpdf-linux-arm64.tar.gz
+          retention-days: 7
+
+  # ------------------------------------------------------------
+  # macOS arm64 (Apple Silicon)
+  # ------------------------------------------------------------
+  macos-arm64:
+    name: macOS arm64
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: brew install cmake nasm pkg-config
+      - name: Build deps + qpdf
+        env:
+          TARGET_OS: macos
+          TARGET_ARCH: arm64
+          MACOSX_DEPLOYMENT_TARGET: '11.0'
+        run: bash tool/build_qpdf.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libqpdf-macos-arm64
+          path: build/dist/libqpdf-macos-arm64.tar.gz
+          retention-days: 7
+
+  # ------------------------------------------------------------
+  # macOS x64 (Intel)
+  # ------------------------------------------------------------
+  macos-x64:
+    name: macOS x64
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: brew install cmake nasm pkg-config
+      - name: Build deps + qpdf
+        env:
+          TARGET_OS: macos
+          TARGET_ARCH: x64
+          MACOSX_DEPLOYMENT_TARGET: '10.15'
+        run: bash tool/build_qpdf.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libqpdf-macos-x64
+          path: build/dist/libqpdf-macos-x64.tar.gz
+          retention-days: 7
+
+  # ------------------------------------------------------------
+  # Windows x64 (MSVC)
+  # ------------------------------------------------------------
+  windows-x64:
+    name: Windows x64
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Install NASM
+        run: choco install nasm -y
+      - name: Build deps + qpdf
+        shell: bash
+        env:
+          TARGET_OS: windows
+          TARGET_ARCH: x64
+        run: |
+          export PATH="/c/Program Files/NASM:$PATH"
+          bash tool/build_qpdf.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libqpdf-windows-x64
+          path: build/dist/libqpdf-windows-x64.tar.gz
+          retention-days: 7
+
+  # ------------------------------------------------------------
+  # Windows arm64 (native arm64 runner)
+  # ------------------------------------------------------------
+  windows-arm64:
+    name: Windows arm64
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: arm64
+      - name: Install NASM
+        run: choco install nasm -y
+      - name: Build deps + qpdf
+        shell: bash
+        env:
+          TARGET_OS: windows
+          TARGET_ARCH: arm64
+        run: |
+          export PATH="/c/Program Files/NASM:$PATH"
+          bash tool/build_qpdf.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libqpdf-windows-arm64
+          path: build/dist/libqpdf-windows-arm64.tar.gz
+          retention-days: 7
+
+  # ------------------------------------------------------------
+  # Publish all artifacts to a GitHub Release
+  # ------------------------------------------------------------
+  release:
+    name: Publish release
+    needs:
+      - linux-x64
+      - linux-arm64
+      - macos-arm64
+      - macos-x64
+      - windows-x64
+      - windows-arm64
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      # Resolve the target release tag from whichever event triggered this run:
+      #   - release:published    -> github.event.release.tag_name
+      #   - workflow_dispatch    -> inputs.tag
+      #   - push tag             -> github.ref_name (e.g. "prebuilts-v12.3.2-1")
+      - name: Resolve release tag
+        id: tag
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -eu
+          if [ -n "${RELEASE_TAG:-}" ]; then
+            tag="$RELEASE_TAG"
+          elif [ -n "${INPUT_TAG:-}" ]; then
+            tag="$INPUT_TAG"
+          else
+            tag="$REF_NAME"
+          fi
+          echo "Resolved release tag: $tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      # Create or update the release and upload all prebuilt artifacts.
+      #
+      # softprops/action-gh-release@v2:
+      #   - Creates the release if it does not already exist
+      #   - Creates the git tag if it does not exist (pointing at the
+      #     workflow's commit SHA) for workflow_dispatch runs
+      #   - Appends or replaces artifacts on an existing release
+      - name: Upload artifacts to release (create if missing)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          files: artifacts/*/libqpdf-*.tar.gz
+          body: |
+            Self-contained qpdf shared libraries for the Dart `qpdf` package.
+
+            Each tarball contains a single shared library file with all
+            dependencies (zlib, libjpeg-turbo, OpenSSL) statically linked.
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: true

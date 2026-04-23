@@ -1,0 +1,30 @@
+# https://dart.dev/tools/pub/private-files
+
+# Dart
+.dart_tool/
+build/
+
+# Don't commit pubspec.lock for library packages.
+# https://dart.dev/tools/pub/dependencies#lockfiles
+pubspec.lock
+
+# Generated API docs
+doc/api/
+
+# Test/coverage output
+coverage/
+
+# Editors
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+
+# macOS / Windows / Linux cruft
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log

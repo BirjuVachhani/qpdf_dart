@@ -1,0 +1,33 @@
+# Controls what's uploaded to pub.dev by `dart pub publish`.
+# When present, .pubignore FULLY REPLACES .gitignore during publish, so this
+# file must include every pattern from .gitignore PLUS publish-only exclusions.
+
+# ----- Mirror of .gitignore -----
+
+.dart_tool/
+build/
+pubspec.lock
+doc/api/
+coverage/
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+
+# ----- Publish-only exclusions -----
+# (Things that ARE committed to git but shouldn't ship to package consumers.)
+
+# GitHub Actions workflows — CI config, not useful to package users
+.github/
+
+# Maintainer scripts for cross-compiling qpdf prebuilts in CI
+tool/
+
+# Tests reference local /tmp/qpdf_test fixtures and aren't runnable on
+# user machines without the setup described in test/integration_test.dart
+test/

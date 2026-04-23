@@ -1,0 +1,26 @@
+name: qpdf
+description: >-
+  Dart FFI wrapper for the qpdf C library. PDF encryption, decryption,
+  linearization, page manipulation, and low-level PDF object access.
+version: 0.1.0
+repository: https://github.com/BirjuVachhani/qpdf_dart
+issue_tracker: https://github.com/BirjuVachhani/qpdf_dart/issues
+
+topics:
+  - pdf
+  - ffi
+  - encryption
+  - qpdf
+
+environment:
+  sdk: ^3.11.4
+
+dependencies:
+  ffi: ^2.1.4
+  hooks: ^1.0.2
+  code_assets: ^1.0.0
+
+dev_dependencies:
+  ffigen: ^20.1.1
+  lints: ^6.0.0
+  test: ^1.25.6

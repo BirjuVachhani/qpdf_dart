@@ -1,0 +1,71 @@
+name: QpdfBindings
+description: Auto-generated FFI bindings for the qpdf C library.
+output:
+  bindings: lib/src/bindings/qpdf_bindings.g.dart
+
+headers:
+  entry-points:
+    - 'third_party/include/qpdf/qpdf-c.h'
+    - 'third_party/include/qpdf/qpdflogger-c.h'
+  include-directives:
+    - '**qpdf-c.h'
+    - '**qpdflogger-c.h'
+    - '**Constants.h'
+    - '**Types.h'
+    - '**DLL.h'
+
+compiler-opts:
+  - '-Ithird_party/include'
+  - '-Wno-macro-redefined'
+
+functions:
+  include:
+    - 'qpdf_.*'
+    - 'qpdflogger_.*'
+
+enums:
+  include:
+    - 'qpdf_error_code_e'
+    - 'qpdf_object_type_e'
+    - 'qpdf_object_stream_e'
+    - 'qpdf_stream_data_e'
+    - 'qpdf_stream_encode_flags_e'
+    - 'qpdf_stream_decode_level_e'
+    - 'qpdf_json_stream_data_e'
+    - 'qpdf_r3_print_e'
+    - 'qpdf_r3_modify_e'
+    - 'pdf_form_field_flag_e'
+    - 'pdf_annotation_flag_e'
+    - 'qpdf_encryption_status_e'
+    - 'qpdf_page_label_e'
+    - 'qpdf_result_e'
+    - 'qpdf_param_e'
+    - 'qpdf_exit_code_e'
+    - 'qpdf_log_dest_e'
+
+structs:
+  include:
+    - '_qpdf_data'
+    - '_qpdf_error'
+    - '_qpdflogger_handle'
+
+typedefs:
+  include:
+    - 'qpdf_data'
+    - 'qpdf_error'
+    - 'qpdf_oh'
+    - 'QPDF_ERROR_CODE'
+    - 'QPDF_BOOL'
+    - 'qpdf_write_fn_t'
+    - 'qpdf_log_fn_t'
+    - 'qpdf_offset_t'
+    - 'qpdflogger_handle'
+
+silence-enum-warning: true
+
+preamble: |
+  // ignore_for_file: type=lint
+  // ignore_for_file: unused_element, deprecated_member_use
+  // ignore_for_file: unnecessary_cast, unused_import
+  // ignore_for_file: camel_case_types, non_constant_identifier_names
+  // AUTO GENERATED - DO NOT MODIFY BY HAND
