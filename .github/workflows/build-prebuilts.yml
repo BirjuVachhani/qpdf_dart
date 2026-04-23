@@ -129,7 +129,7 @@ jobs:
   # ------------------------------------------------------------
   macos-x64:
     name: macOS x64
-    runs-on: macos-13
+    runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v4
       - name: Install build tools
@@ -159,12 +159,20 @@ jobs:
           arch: x64
       - name: Install NASM
         run: choco install nasm -y
+      - name: Ensure Strawberry Perl is available
+        shell: pwsh
+        run: |
+          $perlBin = 'C:\Strawberry\perl\bin'
+          if (-not (Test-Path "$perlBin\perl.exe")) {
+            choco install strawberryperl -y
+          }
       - name: Build deps + qpdf
         shell: bash
         env:
           TARGET_OS: windows
           TARGET_ARCH: x64
         run: |
+          export PATH="/c/Strawberry/perl/bin:$PATH"
           export PATH="/c/Program Files/NASM:$PATH"
           bash tool/build_qpdf.sh
       - uses: actions/upload-artifact@v4
@@ -186,12 +194,20 @@ jobs:
           arch: arm64
       - name: Install NASM
         run: choco install nasm -y
+      - name: Ensure Strawberry Perl is available
+        shell: pwsh
+        run: |
+          $perlBin = 'C:\Strawberry\perl\bin'
+          if (-not (Test-Path "$perlBin\perl.exe")) {
+            choco install strawberryperl -y
+          }
       - name: Build deps + qpdf
         shell: bash
         env:
           TARGET_OS: windows
           TARGET_ARCH: arm64
         run: |
+          export PATH="/c/Strawberry/perl/bin:$PATH"
           export PATH="/c/Program Files/NASM:$PATH"
           bash tool/build_qpdf.sh
       - uses: actions/upload-artifact@v4

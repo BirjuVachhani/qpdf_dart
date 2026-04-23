@@ -136,7 +136,7 @@ build_openssl() {
     *) echo "Unknown target: $TARGET_OS-$TARGET_ARCH"; exit 1 ;;
   esac
 
-  ./Configure "$ssl_target" \
+  perl ./Configure "$ssl_target" \
     --prefix="$PREFIX" \
     --openssldir="$PREFIX/ssl" \
     no-shared \
