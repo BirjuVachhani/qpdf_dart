@@ -181,6 +181,8 @@ jobs:
           arch: arm64
       - name: Install NASM
         run: choco install nasm -y
+      - name: Install pkg-config
+        run: choco install pkgconfiglite -y
       - name: Ensure Strawberry Perl is available
         shell: pwsh
         run: |

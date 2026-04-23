@@ -78,17 +78,20 @@ prepare_windows_toolchain() {
   local link_path=""
   local nmake_path=""
   local rc_path=""
+  local pkg_config_path=""
 
   cl_path="$(command -v cl.exe 2>/dev/null || command -v cl 2>/dev/null || true)"
   link_path="$(command -v link.exe 2>/dev/null || command -v link 2>/dev/null || true)"
   nmake_path="$(command -v nmake.exe 2>/dev/null || command -v nmake 2>/dev/null || true)"
   rc_path="$(command -v rc.exe 2>/dev/null || command -v rc 2>/dev/null || true)"
+  pkg_config_path="$(command -v pkg-config.exe 2>/dev/null || command -v pkg-config 2>/dev/null || true)"
 
   echo "==> Windows toolchain diagnostics"
   echo "    cl:    ${cl_path:-<missing>}"
   echo "    link:  ${link_path:-<missing>}"
   echo "    nmake: ${nmake_path:-<missing>}"
   echo "    rc:    ${rc_path:-<missing>}"
+  echo "    pkg-config: ${pkg_config_path:-<missing>}"
   echo "    CFLAGS: ${CFLAGS:-<unset>}"
   echo "    CXXFLAGS: ${CXXFLAGS:-<unset>}"
 
@@ -215,6 +218,26 @@ build_jpeg() {
     -DCMAKE_POSITION_INDEPENDENT_CODE=ON
   cmake --build build --config Release -j
   cmake --install build --config Release
+
+  if [ "$TARGET_OS" = "windows" ]; then
+    local jpeg_lib=""
+    for jpeg_lib in \
+      "$PREFIX/lib/jpeg-static.lib" \
+      "$PREFIX/lib/libjpeg-static.lib" \
+      "$PREFIX/lib/jpeg.lib" \
+      "$PREFIX/lib/libjpeg.lib"
+    do
+      if [ -f "$jpeg_lib" ]; then
+        if [ ! -f "$PREFIX/lib/jpeg.lib" ]; then
+          cp "$jpeg_lib" "$PREFIX/lib/jpeg.lib"
+        fi
+        if [ ! -f "$PREFIX/lib/libjpeg.lib" ]; then
+          cp "$jpeg_lib" "$PREFIX/lib/libjpeg.lib"
+        fi
+        break
+      fi
+    done
+  fi
 }
 
 # ---------- OpenSSL (static, provides crypto for AES-256) ----------
@@ -266,15 +289,74 @@ build_qpdf() {
   cd "qpdf-${QPDF_VERSION}"
 
   local extra_cmake_args=()
+  local cmake_prefix_path="$PREFIX"
+  local pkg_config_exe=""
+  local jpeg_library=""
+  local zlib_library=""
   if [ "$TARGET_OS" = "macos" ]; then
     # Set rpath so the library is locatable when loaded via DynamicLibrary.open
     extra_cmake_args+=("-DCMAKE_INSTALL_NAME_DIR=@rpath")
   fi
 
+  if [ -n "${CMAKE_PREFIX_PATH:-}" ]; then
+    if [ "$TARGET_OS" = "windows" ]; then
+      cmake_prefix_path="$PREFIX;${CMAKE_PREFIX_PATH}"
+    else
+      cmake_prefix_path="$PREFIX:${CMAKE_PREFIX_PATH}"
+    fi
+  fi
+
+  export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+  if [ -d "$PREFIX/lib64/pkgconfig" ]; then
+    export PKG_CONFIG_PATH="$PREFIX/lib64/pkgconfig:$PKG_CONFIG_PATH"
+  fi
+
+  pkg_config_exe="$(command -v pkg-config.exe 2>/dev/null || command -v pkg-config 2>/dev/null || true)"
+  if [ -n "$pkg_config_exe" ]; then
+    extra_cmake_args+=("-DPKG_CONFIG_EXECUTABLE=$pkg_config_exe")
+  fi
+
+  for jpeg_library in \
+    "$PREFIX/lib/jpeg.lib" \
+    "$PREFIX/lib/libjpeg.lib" \
+    "$PREFIX/lib/jpeg-static.lib" \
+    "$PREFIX/lib/libjpeg-static.lib"
+  do
+    if [ -f "$jpeg_library" ]; then
+      extra_cmake_args+=(
+        "-DJPEG_INCLUDE_DIR=$PREFIX/include"
+        "-DJPEG_LIBRARY=$jpeg_library"
+        "-DJPEG_LIBRARY_RELEASE=$jpeg_library"
+      )
+      break
+    fi
+  done
+
+  for zlib_library in \
+    "$PREFIX/lib/zlib.lib" \
+    "$PREFIX/lib/zlibstatic.lib"
+  do
+    if [ -f "$zlib_library" ]; then
+      extra_cmake_args+=(
+        "-DZLIB_INCLUDE_DIR=$PREFIX/include"
+        "-DZLIB_LIBRARY=$zlib_library"
+        "-DZLIB_LIBRARY_RELEASE=$zlib_library"
+      )
+      break
+    fi
+  done
+
+  echo "==> qpdf dependency discovery"
+  echo "    CMAKE_PREFIX_PATH: $cmake_prefix_path"
+  echo "    PKG_CONFIG_PATH: ${PKG_CONFIG_PATH:-<unset>}"
+  echo "    PKG_CONFIG_EXECUTABLE: ${pkg_config_exe:-<missing>}"
+  echo "    JPEG library: ${jpeg_library:-<missing>}"
+  echo "    ZLIB library: ${zlib_library:-<missing>}"
+
   cmake -B build -S . \
     -DCMAKE_INSTALL_PREFIX="$PREFIX" \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_PREFIX_PATH="$PREFIX" \
+    -DCMAKE_PREFIX_PATH="$cmake_prefix_path" \
     -DBUILD_SHARED_LIBS=ON \
     -DBUILD_STATIC_LIBS=OFF \
     -DBUILD_DOC=OFF \
