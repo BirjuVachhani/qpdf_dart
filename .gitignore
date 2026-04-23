@@ -4,9 +4,9 @@
 .dart_tool/
 build/
 
-# Don't commit pubspec.lock for library packages.
+# Lock files. For library packages the lockfile should not be committed.
 # https://dart.dev/tools/pub/dependencies#lockfiles
-pubspec.lock
+*.lock
 
 # Generated API docs
 doc/api/

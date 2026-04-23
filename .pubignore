@@ -6,7 +6,7 @@
 
 .dart_tool/
 build/
-pubspec.lock
+*.lock
 doc/api/
 coverage/
 .idea/
