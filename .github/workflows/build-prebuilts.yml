@@ -284,5 +284,7 @@ jobs:
             Each tarball contains a single shared library file with all
             dependencies (zlib, libjpeg-turbo, OpenSSL) statically linked.
           draft: false
-          prerelease: false
+          # Prebuilts releases are marked pre-release so the package's
+          # user-facing release stays featured as "Latest" on the Releases page.
+          prerelease: true
           fail_on_unmatched_files: true
