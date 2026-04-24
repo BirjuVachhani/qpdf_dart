@@ -61,7 +61,6 @@ jobs:
   # ------------------------------------------------------------
   linux-x64:
     name: Linux x64
-    needs: windows-arm64
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -74,6 +73,8 @@ jobs:
           TARGET_OS: linux
           TARGET_ARCH: x64
         run: bash tool/build_qpdf.sh
+      - name: Smoke test built library
+        run: LD_LIBRARY_PATH="$PWD/build/prefix/lib" ./build/prefix/bin/qpdf --version
       - uses: actions/upload-artifact@v4
         with:
           name: libqpdf-linux-x64
@@ -85,7 +86,6 @@ jobs:
   # ------------------------------------------------------------
   linux-arm64:
     name: Linux arm64
-    needs: windows-arm64
     runs-on: ubuntu-22.04-arm
     steps:
       - uses: actions/checkout@v4
@@ -98,6 +98,8 @@ jobs:
           TARGET_OS: linux
           TARGET_ARCH: arm64
         run: bash tool/build_qpdf.sh
+      - name: Smoke test built library
+        run: LD_LIBRARY_PATH="$PWD/build/prefix/lib" ./build/prefix/bin/qpdf --version
       - uses: actions/upload-artifact@v4
         with:
           name: libqpdf-linux-arm64
@@ -109,7 +111,6 @@ jobs:
   # ------------------------------------------------------------
   macos-arm64:
     name: macOS arm64
-    needs: windows-arm64
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -121,6 +122,8 @@ jobs:
           TARGET_ARCH: arm64
           MACOSX_DEPLOYMENT_TARGET: '11.0'
         run: bash tool/build_qpdf.sh
+      - name: Smoke test built library
+        run: DYLD_LIBRARY_PATH="$PWD/build/prefix/lib" ./build/prefix/bin/qpdf --version
       - uses: actions/upload-artifact@v4
         with:
           name: libqpdf-macos-arm64
@@ -132,7 +135,6 @@ jobs:
   # ------------------------------------------------------------
   macos-x64:
     name: macOS x64
-    needs: windows-arm64
     runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v4
@@ -144,6 +146,8 @@ jobs:
           TARGET_ARCH: x64
           MACOSX_DEPLOYMENT_TARGET: '10.15'
         run: bash tool/build_qpdf.sh
+      - name: Smoke test built library
+        run: DYLD_LIBRARY_PATH="$PWD/build/prefix/lib" ./build/prefix/bin/qpdf --version
       - uses: actions/upload-artifact@v4
         with:
           name: libqpdf-macos-x64
@@ -151,22 +155,38 @@ jobs:
           retention-days: 7
 
   # ------------------------------------------------------------
-  # Windows x64 (MSVC)
+  # Windows x64 (MSVC, built from source)
   # ------------------------------------------------------------
   windows-x64:
     name: Windows x64
-    needs: windows-arm64
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Install NASM
+        run: choco install nasm -y
+      - name: Ensure Strawberry Perl is available
+        shell: pwsh
+        run: |
+          $perlBin = 'C:\Strawberry\perl\bin'
+          if (-not (Test-Path "$perlBin\perl.exe")) {
+            choco install strawberryperl -y
+          }
       - name: Build deps + qpdf
         shell: bash
         env:
           TARGET_OS: windows
           TARGET_ARCH: x64
-          QPDF_BUILD_STRATEGY: upstream-release
+          QPDF_BUILD_STRATEGY: source
         run: |
+          export PATH="/c/Strawberry/perl/bin:$PATH"
+          export PATH="/c/Program Files/NASM:$PATH"
           bash tool/build_qpdf.sh
+      - name: Smoke test built library
+        shell: bash
+        run: ./build/prefix/bin/qpdf.exe --version
       - uses: actions/upload-artifact@v4
         with:
           name: libqpdf-windows-x64
@@ -175,11 +195,6 @@ jobs:
 
   # ------------------------------------------------------------
   # Windows arm64 (native arm64 runner)
-  #
-  # Runs first as a gate: every other build job `needs: windows-arm64`,
-  # so if this fragile target (native arm64 MSVC + OpenSSL from source)
-  # fails, the rest of the matrix is skipped and no runner minutes are
-  # wasted on downstream builds.
   # ------------------------------------------------------------
   windows-arm64:
     name: Windows arm64
@@ -208,6 +223,9 @@ jobs:
           export PATH="/c/Strawberry/perl/bin:$PATH"
           export PATH="/c/Program Files/NASM:$PATH"
           bash tool/build_qpdf.sh
+      - name: Smoke test built library
+        shell: bash
+        run: ./build/prefix/bin/qpdf.exe --version
       - uses: actions/upload-artifact@v4
         with:
           name: libqpdf-windows-arm64
