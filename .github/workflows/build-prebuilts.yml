@@ -9,16 +9,14 @@ name: Build qpdf prebuilts
 #
 # TRIGGERS
 # --------
-# This workflow runs on any of the following events:
+# This workflow is for prebuilt binaries only and is never auto-triggered by
+# package releases. It runs on either:
 #
-#   1. push tag `prebuilts-v*`
-#        git tag prebuilts-v12.3.2-1 && git push --tags
+#   1. push tag `prebuilts-*`
+#        git tag prebuilts-12.3.2 && git push --tags
 #
-#   2. release published (e.g., via GitHub UI "Create a new release")
-#        the release's tag name is used automatically
-#
-#   3. manual dispatch (Actions tab -> Run workflow)
-#        provide the `tag` input (e.g. "prebuilts-v12.3.2-1");
+#   2. manual dispatch (Actions tab -> Run workflow)
+#        provide the `tag` input (e.g. "prebuilts-12.3.2");
 #        the release is CREATED if it does not already exist
 #
 # RELEASING A NEW QPDF VERSION
@@ -27,23 +25,21 @@ name: Build qpdf prebuilts
 #   2. Update _qpdfVersion in hook/build.dart to match
 #   3. Update qpdf headers in third_party/include/qpdf/ to that version
 #   4. Regenerate bindings: dart run ffigen --config ffigen.yaml
-#   5. Trigger via any of the three methods above
+#   5. Trigger via one of the two methods above using tag
+#      `prebuilts-<qpdf-version>` (e.g. `prebuilts-12.3.2`)
 
 on:
-  # Auto-trigger when a GitHub Release is published (e.g., via the UI).
-  release:
-    types: [published]
-  # Auto-trigger when a prebuilts-v* tag is pushed.
+  # Auto-trigger when a prebuilts-* tag is pushed.
   push:
     tags:
-      - 'prebuilts-v*'
+      - 'prebuilts-*'
   # Manual trigger from the Actions tab with an explicit tag name.
   # If the release does not yet exist at that tag, it will be created.
   workflow_dispatch:
     inputs:
       tag:
         description: >-
-          Release tag to build for (e.g. prebuilts-v12.3.2-1).
+          Release tag to build for (e.g. prebuilts-12.3.2).
           The tag and release will be created if they do not exist,
           pointing at the current HEAD of the workflow's branch.
         required: true
@@ -253,20 +249,16 @@ jobs:
           path: artifacts
 
       # Resolve the target release tag from whichever event triggered this run:
-      #   - release:published    -> github.event.release.tag_name
       #   - workflow_dispatch    -> inputs.tag
-      #   - push tag             -> github.ref_name (e.g. "prebuilts-v12.3.2-1")
+      #   - push tag             -> github.ref_name (e.g. "prebuilts-12.3.2")
       - name: Resolve release tag
         id: tag
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
           INPUT_TAG: ${{ inputs.tag }}
           REF_NAME: ${{ github.ref_name }}
         run: |
           set -eu
-          if [ -n "${RELEASE_TAG:-}" ]; then
-            tag="$RELEASE_TAG"
-          elif [ -n "${INPUT_TAG:-}" ]; then
+          if [ -n "${INPUT_TAG:-}" ]; then
             tag="$INPUT_TAG"
           else
             tag="$REF_NAME"

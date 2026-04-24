@@ -13,19 +13,17 @@ import 'package:hooks/hooks.dart';
 ///   - headers in `third_party/include/qpdf/`
 ///   - generated bindings in `lib/src/bindings/qpdf_bindings.g.dart`
 ///   - `QPDF_VERSION` in `.github/workflows/build-prebuilts.yml`
+///   - the `prebuilts-<version>` release tag on GitHub
 const _qpdfVersion = '12.3.2';
-
-/// Revision of prebuilt binaries for this qpdf version. Bump when re-releasing
-/// prebuilts for the same qpdf version (e.g., build fix).
-const _prebuiltsRevision = 1;
 
 /// Repository that hosts the prebuilt binaries. Must be the repository of
 /// **this package**, not qpdf upstream.
 const _prebuiltsRepo = 'BirjuVachhani/qpdf_dart';
 
-/// GitHub release tag used for prebuilt downloads.
+/// GitHub release tag used for prebuilt downloads. Derived from the qpdf
+/// version so the package is always pinned to a specific prebuilt release.
 /// See `.github/workflows/build-prebuilts.yml`.
-const _prebuiltsTag = 'prebuilts-v$_qpdfVersion-$_prebuiltsRevision';
+const _prebuiltsTag = 'prebuilts-$_qpdfVersion';
 
 const _packageName = 'qpdf';
 const _assetId = 'package:qpdf/src/native/libqpdf';
