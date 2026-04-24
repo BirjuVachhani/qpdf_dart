@@ -310,6 +310,15 @@ build_qpdf() {
     # On Windows/MSVC, pkg-config commonly reports zlib as `-lz`, which CMake
     # turns into `z.lib`. Force CMake to use the explicit library paths below.
     extra_cmake_args+=("-DCMAKE_DISABLE_FIND_PACKAGE_PkgConfig=ON")
+
+    # Static OpenSSL (libcrypto) on Windows references Winsock and CryptoAPI
+    # symbols (e.g. WSAStartup, CertOpenStore). Link the system libs that
+    # provide them so the main qpdf DLL and CLI link cleanly.
+    local win_system_libs="Ws2_32.lib Crypt32.lib"
+    extra_cmake_args+=(
+      "-DCMAKE_EXE_LINKER_FLAGS=$win_system_libs"
+      "-DCMAKE_SHARED_LINKER_FLAGS=$win_system_libs"
+    )
   else
     export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
     if [ -d "$PREFIX/lib64/pkgconfig" ]; then
@@ -370,6 +379,7 @@ build_qpdf() {
     -DBUILD_DOC=OFF \
     -DBUILD_DOC_HTML=OFF \
     -DBUILD_DOC_PDF=OFF \
+    -DBUILD_TESTING=OFF \
     -DOSS_FUZZ=OFF \
     -DREQUIRE_CRYPTO_OPENSSL=ON \
     -DUSE_IMPLICIT_CRYPTO=OFF \
