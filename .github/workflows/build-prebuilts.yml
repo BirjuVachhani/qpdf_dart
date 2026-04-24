@@ -61,6 +61,7 @@ jobs:
   # ------------------------------------------------------------
   linux-x64:
     name: Linux x64
+    needs: windows-arm64
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -84,6 +85,7 @@ jobs:
   # ------------------------------------------------------------
   linux-arm64:
     name: Linux arm64
+    needs: windows-arm64
     runs-on: ubuntu-22.04-arm
     steps:
       - uses: actions/checkout@v4
@@ -107,6 +109,7 @@ jobs:
   # ------------------------------------------------------------
   macos-arm64:
     name: macOS arm64
+    needs: windows-arm64
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -129,6 +132,7 @@ jobs:
   # ------------------------------------------------------------
   macos-x64:
     name: macOS x64
+    needs: windows-arm64
     runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v4
@@ -151,6 +155,7 @@ jobs:
   # ------------------------------------------------------------
   windows-x64:
     name: Windows x64
+    needs: windows-arm64
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
@@ -170,6 +175,11 @@ jobs:
 
   # ------------------------------------------------------------
   # Windows arm64 (native arm64 runner)
+  #
+  # Runs first as a gate: every other build job `needs: windows-arm64`,
+  # so if this fragile target (native arm64 MSVC + OpenSSL from source)
+  # fails, the rest of the matrix is skipped and no runner minutes are
+  # wasted on downstream builds.
   # ------------------------------------------------------------
   windows-arm64:
     name: Windows arm64
